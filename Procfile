@@ -1,0 +1,1 @@
+web: gunicorn nombre_de_tu_archivo:server
