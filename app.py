@@ -31,6 +31,7 @@ for tipo_fruta in df['fruta'].unique():
 
 # 3. EL DASHBOARD (Layout simplificado)
 app = dash.Dash(__name__)
+server = app.server
 
 app.layout = html.Div([
     html.H1("Dashboard interactivo de Ventas de Frutas"),
