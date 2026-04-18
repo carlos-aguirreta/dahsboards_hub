@@ -24,6 +24,8 @@ To run any of these dashboards, ensure you have Python installed and follow thes
     ```
 4.  **Access:** Open `http://127.0.0.1:8050/` in your browser.
 
+### **🚀 Live Deployment:** [Visualize Interactive Dashboard here](https://web-production-7c4b6.up.railway.app/)
+
 <br>
 <br>
 
@@ -53,3 +55,5 @@ Para ejecutar cualquiera de estos tableros, asegúrate de tener Python instalado
     python dashboard_sqlite.py
     ```
 4.  **Acceso:** Abre `http://127.0.0.1:8050/` en tu navegador para interactuar con la aplicación.
+
+### **🚀 Demo en Vivo:** [Visualiza el Dashboard Interactivo aquí](https://web-production-7c4b6.up.railway.app/)
