@@ -1,127 +1,113 @@
 import dash
 from dash import dcc, html, Input, Output
+import dash_bootstrap_components as dbc
 import plotly.graph_objs as go
 import pandas as pd
 import numpy as np
 
 # 1. GENERACIÓN DE DATOS MASIVOS (100 filas)
-n_filas = 100
+# --- DATASET (El que ya teníamos) ---
 dias_semana = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-lista_frutas = ['Apple', 'Pear', 'Grape', 'Orange', 'Mango', 'Pineapple']
-
+frutas = ['Apple', 'Pear', 'Grape', 'Mango', 'Orange', 'Pineapple']
 datos = {
-    'dia': [dias_semana[i % 7] for i in range(n_filas)], # Repite los días cíclicamente
-    'fruta': np.random.choice(lista_frutas, n_filas),    # Elige frutas al azar
-    'cantidad': np.random.randint(5, 50, n_filas),       # Cantidades aleatorias entre 5 y 50
-    'vendedor': np.random.choice(['Ana', 'Pedro', 'Luis'], n_filas) # Una columna extra por si acaso
+    'dia': [dias_semana[i % 7] for i in range(100)],
+    'fruta': np.random.choice(frutas, 100),
+    'cantidad': np.random.randint(10, 100, 100)
 }
-
 df = pd.DataFrame(datos)
-
-# 2. ORDENAR CRONOLÓGICAMENTE (Para que la gráfica no sea un caos)
 df['dia'] = pd.Categorical(df['dia'], categories=dias_semana, ordered=True)
-# Agrupamos para que si hay varios registros del mismo día/fruta, se sumen
 df = df.groupby(['dia', 'fruta'], as_index=False, observed=False)['cantidad'].sum()
 
-# 2. PREPARAR LOS DATOS (El Pipeline)
-data_grafico = []
-
-# Queremos una linea para cada fruta... ¿como lo hacemos automatico?
-for tipo_fruta in df['fruta'].unique():
-    # Filtramos los datos para la fruta de esta vuelta del bucle
-    current = df.query('fruta == @tipo_fruta')
-    
-    # Agregamos el objeto a nuestra lista
-    data_grafico += [
-        go.Scatter(
-            x=current['dia'],
-            y=current['cantidad'],
-            mode='lines+markers', # Lineas con puntos para que se vea claro
-            name=tipo_fruta
-        )
-    ]
-
-# 3. EL DASHBOARD (Layout simplificado)
-app = dash.Dash(__name__)
+# --- APP SETUP ---
+# Usamos un tema "LUX" o "FLATLY" para que se vea elegante
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 server = app.server
 
-app.layout = html.Div([
-    html.H1("FRUIT SALES ANALYTICS HUB", style={'textAlign': 'center', 'fontFamily': 'Arial'}),
-    
-    html.Div([
-        html.Label("Select Fruits to Compare:"),
-        dcc.Dropdown(
-            id='filtro-fruta',
-            options=[{'label': i, 'value': i} for i in df['fruta'].unique()],
-            value=['Apple', 'Pear'], # Iniciamos con dos para que se vea la comparativa
-            multi=True,
-            clearable=False
-        ),
-    ], style={'padding': '20px', 'width': '50%'}),
+# --- LAYOUT PROFESIONAL ---
+app.layout = dbc.Container([
+    # Encabezado
+    dbc.Row([
+        dbc.Col(html.H1("Fruit Sales Analytics Hub", className="text-center my-4 fw-bold"), width=12)
+    ]),
 
-    # Contenedor para las gráficas
-    html.Div([
-        dcc.Graph(id='grafico-lineas'),
-        dcc.Graph(id='grafico-barras')
+    # Fila de KPIs (Tarjetas de resumen)
+    dbc.Row([
+        dbc.Col(dbc.Card([
+            dbc.CardBody([
+                html.H5("Total Units Sold", className="card-title text-muted"),
+                html.H2(id="kpi-total", className="text-primary")
+            ])
+        ], className="text-center shadow-sm"), width=4),
+        
+        dbc.Col(dbc.Card([
+            dbc.CardBody([
+                html.H5("Best Selling Fruit", className="card-title text-muted"),
+                html.H2(id="kpi-best", className="text-success")
+            ])
+        ], className="text-center shadow-sm"), width=4),
+
+        dbc.Col(dbc.Card([
+            dbc.CardBody([
+                html.H5("Top Sales Day", className="card-title text-muted"),
+                html.H2(id="kpi-day", className="text-warning")
+            ])
+        ], className="text-center shadow-sm"), width=4),
+    ], className="mb-4"),
+
+    # Filtros
+    dbc.Row([
+        dbc.Col([
+            html.Label("Filter by Fruit:"),
+            dcc.Dropdown(
+                id='filtro-fruta',
+                options=[{'label': i, 'value': i} for i in frutas],
+                value=frutas[:3],
+                multi=True,
+                className="mb-4"
+            ),
+        ], width=12)
+    ]),
+
+    # Gráficas en paralelo (Grid System)
+    dbc.Row([
+        dbc.Col(dcc.Graph(id='grafico-lineas'), lg=7, md=12),
+        dbc.Col(dcc.Graph(id='grafico-barras'), lg=5, md=12),
     ])
-])
+], fluid=True)
 
-# Esta es la "magia" que conecta el Dropdown con el Gráfico
+# --- CALLBACK ---
 @app.callback(
     [Output('grafico-lineas', 'figure'),
-     Output('grafico-barras', 'figure')],
+     Output('grafico-barras', 'figure'),
+     Output('kpi-total', 'children'),
+     Output('kpi-best', 'children'),
+     Output('kpi-day', 'children')],
     Input('filtro-fruta', 'value')
 )
-def actualizar_dashboard(lista_frutas):
-    # 1. Filtramos el dataframe usando .isin() 
-    df_filtrado = df[df['fruta'].isin(lista_frutas)]
+def update_dashboard(selected_fruits):
+    filtered_df = df[df['fruta'].isin(selected_fruits)]
     
-    # --- GRÁFICA DE LÍNEAS ---
-    data_lineas = []
-    for f in lista_frutas:
-        current = df_filtrado.query('fruta == @f')
-        data_lineas += [
-            go.Scatter(
-                x=current['dia'], 
-                y=current['cantidad'], 
-                mode='lines+markers', 
-                name=f
-            )
-        ]
-    
-    fig_lineas = {
-        'data': data_lineas,
-        'layout': go.Layout(title="<b>Daily Sales Trend</b>", xaxis={'title': 'Day'}, yaxis={'title': 'Quantity'})
-    }
+    # Cálculos para KPIs
+    total_sales = f"{filtered_df['cantidad'].sum():,}"
+    best_fruit = filtered_df.groupby('fruta', observed=False)['cantidad'].sum().idxmax()
+    best_day = filtered_df.groupby('dia', observed=False)['cantidad'].sum().idxmax()
 
-    # --- GRÁFICA DE BARRAS (Con colores consistentes) ---
-    # Sumamos el total vendido por cada fruta seleccionada
-    df_totales = df_filtrado.groupby('fruta', as_index=False, observed=False)['cantidad'].sum()
-    
-    data_barras = []
-    for f in lista_frutas:
-        # Filtramos el total solo para la fruta de esta vuelta
-        fruta_data = df_totales[df_totales['fruta'] == f]
-        
-        data_barras += [
-            go.Bar(
-                x=fruta_data['fruta'], 
-                y=fruta_data['cantidad'], 
-                name=f,
-                showlegend=False # La leyenda ya aparece en el gráfico de líneas
-            )
-        ]
-    
-    fig_barras = {
-        'data': data_barras,
-        'layout': go.Layout(
-            title="<b>Total Sales Volume per Fruit</b>",
-            xaxis={'title': 'Fruit'},
-            yaxis={'title': 'Total Quantity'}
-        )
-    }
+    # Gráfica de Líneas
+    fig_lineas = go.Figure()
+    for f in selected_fruits:
+        curr = filtered_df[filtered_df['fruta'] == f]
+        fig_lineas.add_trace(go.Scatter(x=curr['dia'], y=curr['cantidad'], name=f, mode='lines+markers'))
+    fig_lineas.update_layout(title="<b>Daily Performance Trend</b>", template="plotly_white")
 
-    return fig_lineas, fig_barras
+    # Gráfica de Barras
+    totals = filtered_df.groupby('fruta', as_index=False, observed=False)['cantidad'].sum()
+    fig_barras = go.Figure()
+    for f in selected_fruits:
+        f_total = totals[totals['fruta'] == f]
+        fig_barras.add_trace(go.Bar(x=f_total['fruta'], y=f_total['cantidad'], name=f, showlegend=False))
+    fig_barras.update_layout(title="<b>Total Volume per Category</b>", template="plotly_white")
+
+    return fig_lineas, fig_barras, total_sales, best_fruit, best_day
 
 if __name__ == '__main__':
     import os
